@@ -135,8 +135,8 @@ export function validarCalendari(
     }
   }
 
-  // R6: No repetir mateix vehicle >2 dies consecutius
-  const noms = ["Mohamed", "Samer", "Fredi", "Karim", "Mamadou", "Mourad", "Koke", "Mimoun"]
+  // R6: No repetir mateix vehicle >2 dies consecutius (Samer exempt: és fix al Satèl·lit 1 per definició)
+  const noms = ["Mohamed", "Fredi", "Karim", "Mamadou", "Mourad", "Koke", "Mimoun"]
   for (const nom of noms) {
     let consecutius = 0
     let vehicleAnterior = ""

@@ -39,25 +39,25 @@ export function construirPrompt(
   return `Genera el calendari de torns per a la brigada porta a porta del mes de ${nomMes} ${any}.
 
 TREBALLADORS I ROLS:
-- Mohamed: conductor_camio (mai al satèl·lit)
-- Samer: FIX al Satèl·lit 1 (mai al Camió ni Satèl·lit 2)
+- Mohamed: conductor. Va al Camió quan li toca. Quan NO va al Camió (l'altre conductor condueix), POT i HA D'anar a un satèl·lit si hi ha plaça lliure — no descansar si hi ha necessitat.
+- Samer: FIX al Satèl·lit 1 sempre. Mai al Camió ni Satèl·lit 2.
 - Fredi: operari (rota entre vehicles)
 - Karim: operari (rota entre vehicles)
-- Mamadou: conductor_camio (mai al satèl·lit)
+- Mamadou: conductor. Va al Camió quan li toca. Quan NO va al Camió (l'altre conductor condueix), PEUT i HA D'anar a un satèl·lit si hi ha plaça lliure — no descansar si hi ha necessitat.
 - Mourad: operari (rota entre vehicles)
 - Koke: operari (rota entre vehicles)
 - Mimoun: operari (rota entre vehicles)
-- BEN_NET: substitut quan no hi ha operari disponible (en vermell)
+- BEN_NET: ÚLTIM RECURS. Només quan tots els treballadors disponibles ja estan assignats o de descans obligatori.
 
 RESTRICCIONS ABSOLUTES:
-R1. Camió SEMPRE necessita O Mohamed O Mamadou (mai els dos junts, mai cap dels dos absent).
+R1. Camió SEMPRE necessita EXACTAMENT UN conductor: O Mohamed O Mamadou (mai els dos junts al Camió). L'altre conductor disponible HA de cobrir una plaça de satèl·lit si en queda una de buida.
 R2. Samer va SEMPRE i ÚNICAMENT al Satèl·lit 1. Si no disponible, Satèl·lit 1 pot tenir BEN_NET.
 R3. Fredi i Mourad MAI poden coincidir al Satèl·lit 1 ni al Satèl·lit 2.
 R4. Dies laborables: Camió=3, Satèl·lit1=2, Satèl·lit2=2. Caps setmana: Camió=3, Satèl·lit1=1, Satèl·lit2=[].
 R5. Cada treballador mínim 2 dies de descans per setmana (màx 5 dies treballats/setmana).
-R6. No repetir el mateix treballador al mateix vehicle >2 dies consecutius.
+R6. No repetir el mateix treballador al mateix vehicle >2 dies consecutius (excepte Samer, que és fix).
 R7. PRIORITAT ABSOLUTA: cap treballador treballa si no_disponible (vacances/baixa/festiu).
-R8. Si no hi ha operari per cobrir plaça, assignar "BEN_NET".
+R8. BEN_NET només si després d'assignar TOTS els treballadors disponibles (inclosos els conductors que no condueixen aquell dia) encara queda una plaça buida.
 
 DISPONIBILITAT PER DIA:
 ${diesStr}

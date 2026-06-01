@@ -1,6 +1,9 @@
 "use client"
 
+import { useState } from "react"
 import { ErrorValidacio } from "@/types"
+
+const RESTRICCIONS_CRÍTIQUES = new Set(["R1", "R2", "R3", "R7"])
 
 interface Props {
   errors: ErrorValidacio[]
@@ -8,49 +11,87 @@ interface Props {
 }
 
 export default function ErrorsValidacio({ errors, advertencies }: Props) {
-  const teErrors = errors.length > 0
+  const [mostrarDetall, setMostrarDetall] = useState(false)
+
+  const critics = errors.filter(e => RESTRICCIONS_CRÍTIQUES.has(e.restriccio))
+  const avisos = errors.filter(e => !RESTRICCIONS_CRÍTIQUES.has(e.restriccio))
+
+  const okTotal = critics.length === 0
+
+  // Agrupar missatges crítics únics (sense data) per mostrar-los compactes
+  const criticsMissatgesUnics = [...new Set(critics.map(e => {
+    // Treure la data del missatge per agrupar
+    return e.missatge.replace(/^\d{4}-\d{2}-\d{2}: /, "")
+  }))]
 
   return (
     <div className={`rounded-lg border p-4 ${
-      teErrors
-        ? "border-orange-700 bg-orange-900/20"
-        : "border-green-700 bg-green-900/20"
+      okTotal
+        ? "border-green-700 bg-green-900/20"
+        : "border-red-700 bg-red-900/20"
     }`}>
-      <div className="flex items-center gap-2 mb-3">
-        <span className={`text-lg ${teErrors ? "text-orange-400" : "text-green-400"}`}>
-          {teErrors ? "⚠" : "✓"}
+      {/* Capçalera */}
+      <div className="flex items-center gap-2 mb-2">
+        <span className={`text-xl ${okTotal ? "text-green-400" : "text-red-400"}`}>
+          {okTotal ? "✓" : "✗"}
         </span>
-        <h3 className={`font-semibold ${teErrors ? "text-orange-400" : "text-green-400"}`}>
-          {teErrors
-            ? `Restriccions violades (${errors.length} errors)`
-            : "Totes les restriccions verificades correctament"}
+        <h3 className={`font-semibold text-base ${okTotal ? "text-green-400" : "text-red-400"}`}>
+          {okTotal
+            ? "Calendari vàlid — llest per exportar"
+            : `Calendari invàlid — ${critics.length} problema${critics.length > 1 ? "s" : ""} crític${critics.length > 1 ? "s" : ""}`}
         </h3>
       </div>
 
-      {teErrors && (
-        <div className="space-y-1.5 mb-3">
-          {errors.map((err, i) => (
-            <div key={i} className="flex gap-2 text-sm">
-              <span className="shrink-0 rounded bg-orange-800/50 px-1.5 py-0.5 text-xs font-mono text-orange-300">
-                {err.restriccio}
-              </span>
-              <span className="text-orange-200">{err.missatge}</span>
-            </div>
+      {/* Errors crítics — compactes */}
+      {critics.length > 0 && (
+        <ul className="mb-3 space-y-1 pl-1">
+          {criticsMissatgesUnics.map((msg, i) => (
+            <li key={i} className="flex items-start gap-2 text-sm text-red-300">
+              <span className="mt-0.5 shrink-0 text-red-500">•</span>
+              {msg}
+            </li>
           ))}
+        </ul>
+      )}
+
+      {/* Avisos de sobrecàrrega (R5/R6) — col·lapsats */}
+      {avisos.length > 0 && (
+        <div className="mt-2">
+          <button
+            onClick={() => setMostrarDetall(!mostrarDetall)}
+            className="flex items-center gap-1.5 text-xs text-yellow-500 hover:text-yellow-400 transition-colors"
+          >
+            <span>{mostrarDetall ? "▾" : "▸"}</span>
+            {avisos.length} avís{avisos.length > 1 ? "os" : ""} de sobrecàrrega per vacances simultànies
+          </button>
+          {mostrarDetall && (
+            <ul className="mt-2 space-y-0.5 pl-3">
+              {avisos.map((e, i) => (
+                <li key={i} className="text-xs text-yellow-600">{e.missatge}</li>
+              ))}
+            </ul>
+          )}
+          {!mostrarDetall && (
+            <p className="mt-1 text-xs text-gray-500">
+              Aquests avisos poden ser inevitables quan hi ha moltes vacances al mateix mes.
+            </p>
+          )}
         </div>
       )}
 
+      {/* Observacions */}
       {advertencies.length > 0 && (
         <div className="mt-2 space-y-1">
           {advertencies.map((adv, i) => (
-            <p key={i} className="text-sm text-yellow-400">ℹ {adv}</p>
+            <p key={i} className="text-xs text-gray-400">ℹ {adv}</p>
           ))}
         </div>
       )}
 
-      {teErrors && (
-        <p className="mt-3 text-xs text-gray-400">
-          El calendari s&apos;ha generat però té errors. Pots acceptar-lo igualment o tornar a generar.
+      {/* Peu */}
+      {!okTotal && (
+        <p className="mt-3 text-xs text-gray-500">
+          Pots tornar a generar o exportar igualment si els problemes son acceptables.
         </p>
       )}
     </div>

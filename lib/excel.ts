@@ -1,207 +1,136 @@
-import * as XLSX from "xlsx"
+import ExcelJS from "exceljs"
 import { AssignacioTorn } from "@/types"
 
 const NOMS_MESOS = [
   "Gener","Febrer","Març","Abril","Maig","Juny",
   "Juliol","Agost","Setembre","Octubre","Novembre","Desembre"
 ]
-const DIES_COLS = ["L","M","X","J","V","S","D"] // B=L, C=M, D=X, E=J, F=V, G=S, H=D
-const COL_LETTERS = ["B","C","D","E","F","G","H"]
+const DIES_COLS = ["L","M","X","J","V","S","D"]
 
 function getDiaSetmanaIndex(data: string): number {
-  // 0=Dl, 1=Dm, 2=Dx, 3=Dj, 4=Dv, 5=Ds, 6=Dg
   const d = new Date(data + "T00:00:00").getDay()
-  return d === 0 ? 6 : d - 1
+  return d === 0 ? 6 : d - 1 // 0=Dl, 6=Dg
 }
 
 function formatCellaLaborable(torn: AssignacioTorn): string {
-  const camioStr = torn.camio.join(", ")
-  const sat1Str = torn.satellit1.join(", ")
-  const sat2Str = torn.satellit2.join(", ")
-  let txt = `Camió: ${camioStr}\nSatèl·lit 1: ${sat1Str}`
-  if (sat2Str) txt += `\nSatèl·lit 2: ${sat2Str}`
-  return txt
+  const parts: string[] = [`Camió: ${torn.camio.join(", ")}`]
+  if (torn.satellit1.length) parts.push(`Satèl·lit 1: ${torn.satellit1.join(", ")}`)
+  if (torn.satellit2.length) parts.push(`Satèl·lit 2: ${torn.satellit2.join(", ")}`)
+  return parts.join("\n")
 }
 
 function formatCellaCapSetmana(torn: AssignacioTorn): string {
-  const camioStr = torn.camio.join(", ")
-  const sat1Str = torn.satellit1.join(", ")
-  return `Camió: ${camioStr}\nSatèl·lit: ${sat1Str}`
+  const parts: string[] = [`Camió: ${torn.camio.join(", ")}`]
+  if (torn.satellit1.length) parts.push(`Satèl·lit: ${torn.satellit1.join(", ")}`)
+  return parts.join("\n")
 }
 
-export function generarExcel(
+const THIN_BORDER: Partial<ExcelJS.Borders> = {
+  left:  { style: "thin", color: { argb: "FF000000" } },
+  top:   { style: "thin", color: { argb: "FF000000" } },
+}
+
+export async function generarExcel(
   mes: number,
   any: number,
   calendari: AssignacioTorn[]
-): Buffer {
-  const wb = XLSX.utils.book_new()
-  const ws: XLSX.WorkSheet = {}
+): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet("Mensual")
 
   const nomMes = NOMS_MESOS[mes - 1]
   const diesDelMes = new Date(any, mes, 0).getDate()
+  const primerDia = getDiaSetmanaIndex(
+    `${any}-${String(mes).padStart(2, "0")}-01`
+  )
 
-  // Calcular primer dia de la setmana del mes
-  const primerDia = getDiaSetmanaIndex(`${any}-${String(mes).padStart(2, "0")}-01`)
+  // Amplades columnes (A..H)
+  ws.getColumn("A").width = 8.7
+  for (let c = 2; c <= 8; c++) ws.getColumn(c).width = 18.7
 
-  // Estructura: capçalera mes (fila 3), capçalera dies (fila 4), setmanes (2 files per setmana)
-  let filaActual = 3
-
-  // Capçalera mes
-  ws[`B${filaActual}`] = {
-    v: `${nomMes} ${any}`,
-    t: "s",
-    s: {
-      font: { name: "Calibri", sz: 28, bold: true },
-      alignment: { horizontal: "left" },
-    },
-  }
-  filaActual++
-
-  // Capçalera dies setmana
-  DIES_COLS.forEach((dia, i) => {
-    ws[`${COL_LETTERS[i]}${filaActual}`] = {
-      v: dia,
-      t: "s",
-      s: {
-        font: { name: "Calibri", sz: 16 },
-        alignment: { horizontal: "center" },
-        border: {
-          left: { style: "thin" },
-          top: { style: "thin" },
-        },
-      },
-    }
-  })
-  filaActual++
-
-  // Preparar mapa data->torn
   const tornPerData = new Map<string, AssignacioTorn>()
-  for (const torn of calendari) {
-    tornPerData.set(torn.data, torn)
-  }
+  for (const torn of calendari) tornPerData.set(torn.data, torn)
 
-  // Setmanes — primer fila dates, segon fila contingut
+  let fila = 3
+
+  // ── Capçalera mes ──────────────────────────────────────────────
+  const celMes = ws.getCell(fila, 2)
+  celMes.value = `${nomMes} ${any}`
+  celMes.font = { name: "Calibri", size: 28, bold: true }
+  fila++
+
+  // ── Capçalera dies setmana ─────────────────────────────────────
+  const filaCap = ws.getRow(fila)
+  filaCap.height = 22
+  DIES_COLS.forEach((dia, i) => {
+    const cel = ws.getCell(fila, i + 2)
+    cel.value = dia
+    cel.font = { name: "Calibri", size: 16 }
+    cel.alignment = { horizontal: "center" }
+    cel.border = THIN_BORDER
+  })
+  fila++
+
+  // ── Setmanes ───────────────────────────────────────────────────
   let diaActual = 1
-  // Primer "setmana" pot tenir dies buits a l'inici
   while (diaActual <= diesDelMes) {
-    const filaDates = filaActual
-    const filaContingut = filaActual + 1
+    const filaDates    = fila
+    const filaContingut = fila + 1
 
-    // Fila dates
+    ws.getRow(filaDates).height    = 12.75
+    ws.getRow(filaContingut).height = 75
+
+    // Buits inicials / finals
     for (let col = 0; col < 7; col++) {
-      const colLetter = COL_LETTERS[col]
-      let diaNum: number | null = null
-
-      if (diaActual === 1) {
-        // Primer dia: calcular columna correcta
-        if (col >= primerDia) {
-          const offset = col - primerDia
-          diaNum = offset + 1
-        }
-      } else {
-        // Continuar seqüencialment
-        diaNum = null // es calcularà baix
-      }
-
-      ws[`${colLetter}${filaDates}`] = {
-        v: "",
-        t: "s",
-        s: {
-          font: { name: "Calibri", sz: 10 },
-          border: { left: { style: "thin" }, top: { style: "thin" } },
-        },
-      }
-      ws[`${colLetter}${filaContingut}`] = {
-        v: "",
-        t: "s",
-        s: {
-          font: { name: "Calibri", sz: 9 },
-          alignment: { wrapText: true, vertical: "top" },
-          border: { left: { style: "thin" }, top: { style: "thin" } },
-        },
-      }
+      const cD = ws.getCell(filaDates, col + 2)
+      const cC = ws.getCell(filaContingut, col + 2)
+      cD.border = THIN_BORDER
+      cC.border = THIN_BORDER
+      cC.alignment = { wrapText: true, vertical: "top" }
     }
 
-    // Omplir setmana
-    // Determinar el rang de dies d'aquesta setmana
-    // Col·lumna d'inici: si és la primera setmana, primerDia; sinó, 0
     const colInici = diaActual === 1 ? primerDia : 0
+
     for (let col = colInici; col < 7 && diaActual <= diesDelMes; col++) {
-      const colLetter = COL_LETTERS[col]
-      const dataStr = `${any}-${String(mes).padStart(2, "0")}-${String(diaActual).padStart(2, "0")}`
+      const dataStr = `${any}-${String(mes).padStart(2,"0")}-${String(diaActual).padStart(2,"0")}`
       const torn = tornPerData.get(dataStr)
 
       // Fila dates
-      ws[`${colLetter}${filaDates}`] = {
-        v: diaActual,
-        t: "n",
-        s: {
-          font: { name: "Calibri", sz: 10 },
-          border: { left: { style: "thin" }, top: { style: "thin" } },
-        },
-      }
+      const celData = ws.getCell(filaDates, col + 2)
+      celData.value = diaActual
+      celData.font  = { name: "Calibri", size: 10 }
+      celData.border = THIN_BORDER
 
       // Fila contingut
-      if (torn) {
-        if (torn.es_festiu) {
-          ws[`${colLetter}${filaContingut}`] = {
-            v: "FESTIU",
-            t: "s",
-            s: {
-              font: { name: "Calibri", sz: 9, color: { rgb: "FF8C00" }, bold: true },
-              alignment: { wrapText: true, vertical: "top", horizontal: "center" },
-              border: { left: { style: "thin" }, top: { style: "thin" } },
-            },
-          }
-        } else {
-          const textCella = torn.es_cap_setmana
-            ? formatCellaCapSetmana(torn)
-            : formatCellaLaborable(torn)
+      const celCont = ws.getCell(filaContingut, col + 2)
+      celCont.border = THIN_BORDER
+      celCont.alignment = { wrapText: true, vertical: "top" }
 
-          // Comprovar si hi ha BEN_NET (rich text simplificat — xlsx no suporta rich text fàcilment)
-          const teBenNet = torn.camio.includes("BEN_NET") ||
-            torn.satellit1.includes("BEN_NET") ||
-            torn.satellit2.includes("BEN_NET")
+      if (torn?.es_festiu) {
+        celCont.value = "FESTIU"
+        celCont.font  = { name: "Calibri", size: 9, bold: true, color: { argb: "FFFF8C00" } }
+        celCont.alignment = { wrapText: true, vertical: "middle", horizontal: "center" }
+      } else if (torn) {
+        const text = torn.es_cap_setmana
+          ? formatCellaCapSetmana(torn)
+          : formatCellaLaborable(torn)
 
-          ws[`${colLetter}${filaContingut}`] = {
-            v: textCella,
-            t: "s",
-            s: {
-              font: {
-                name: "Calibri",
-                sz: 9,
-                ...(teBenNet ? { color: { rgb: "FF0000" }, bold: true } : {}),
-              },
-              alignment: { wrapText: true, vertical: "top" },
-              border: { left: { style: "thin" }, top: { style: "thin" } },
-            },
-          }
+        const teBenNet = [...torn.camio, ...torn.satellit1, ...torn.satellit2].includes("BEN_NET")
+
+        celCont.value = text
+        celCont.font  = {
+          name: "Calibri",
+          size: 9,
+          ...(teBenNet ? { bold: true, color: { argb: "FFFF0000" } } : {}),
         }
       }
 
       diaActual++
     }
 
-    filaActual += 2
+    fila += 2
   }
 
-  // Dimensions de les columnes
-  ws["!cols"] = [
-    { wch: 8.7 },  // A
-    { wch: 18.7 }, // B
-    { wch: 18.7 }, // C
-    { wch: 18.7 }, // D
-    { wch: 18.7 }, // E
-    { wch: 18.7 }, // F
-    { wch: 18.7 }, // G
-    { wch: 18.7 }, // H
-  ]
-
-  // Rang del full
-  ws["!ref"] = `A1:H${filaActual}`
-
-  XLSX.utils.book_append_sheet(wb, ws, "Mensual")
-
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" })
+  const buf = await wb.xlsx.writeBuffer()
   return Buffer.from(buf)
 }

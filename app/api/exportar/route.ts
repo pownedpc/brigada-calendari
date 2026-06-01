@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
     const body: { mes: number; any: number; calendari: AssignacioTorn[] } = await req.json()
     const { mes, any: year, calendari } = body
 
-    const buffer = generarExcel(mes, year, calendari)
+    const buffer = await generarExcel(mes, year, calendari)
 
     const nomMesos = ["Gener","Febrer","Març","Abril","Maig","Juny","Juliol","Agost","Setembre","Octubre","Novembre","Desembre"]
     const nomFitxer = `Calendari_Brigada_${nomMesos[mes-1]}_${year}.xlsx`

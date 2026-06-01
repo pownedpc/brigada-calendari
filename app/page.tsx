@@ -1,65 +1,206 @@
-import Image from "next/image";
+"use client"
+
+import { useState } from "react"
+import Formulari from "@/components/Formulari"
+import VacancesDelMes from "@/components/VacancesDelMes"
+import CalendariVisual from "@/components/CalendariVisual"
+import ErrorsValidacio from "@/components/ErrorsValidacio"
+import { PeticioGeneracio, RespostaGeneracio } from "@/types"
 
 export default function Home() {
+  const ara = new Date()
+  const [mesSeleccionat, setMesSeleccionat] = useState(
+    ara.getMonth() + 2 > 12 ? 1 : ara.getMonth() + 2
+  )
+  const [anySeleccionat, setAnySeleccionat] = useState(
+    ara.getMonth() + 2 > 12 ? ara.getFullYear() + 1 : ara.getFullYear()
+  )
+  const [carregant, setCarregant] = useState(false)
+  const [resposta, setResposta] = useState<RespostaGeneracio | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [exportant, setExportant] = useState(false)
+  const [ultimaPeticio, setUltimaPeticio] = useState<PeticioGeneracio | null>(null)
+
+  async function handleGenerar(dades: PeticioGeneracio) {
+    setCarregant(true)
+    setError(null)
+    setResposta(null)
+    setMesSeleccionat(dades.mes)
+    setAnySeleccionat(dades.any)
+    setUltimaPeticio(dades)
+
+    try {
+      const res = await fetch("/api/generar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dades),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error ?? "Error desconegut")
+        return
+      }
+
+      setResposta(data)
+    } catch (e) {
+      setError("Error de connexió: " + String(e))
+    } finally {
+      setCarregant(false)
+    }
+  }
+
+  async function handleExportar() {
+    if (!resposta || !ultimaPeticio) return
+    setExportant(true)
+    try {
+      const res = await fetch("/api/exportar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mes: mesSeleccionat,
+          any: anySeleccionat,
+          calendari: resposta.calendari,
+        }),
+      })
+      if (!res.ok) {
+        setError("Error exportant el fitxer Excel.")
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      const cd = res.headers.get("Content-Disposition") ?? ""
+      const match = cd.match(/filename="([^"]+)"/)
+      a.download = match?.[1] ?? "calendari.xlsx"
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setError("Error exportant: " + String(e))
+    } finally {
+      setExportant(false)
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen bg-gray-950">
+      {/* Header */}
+      <header className="border-b border-gray-800 bg-gray-900 px-6 py-4">
+        <div className="mx-auto max-w-7xl">
+          <h1 className="text-xl font-bold text-white">
+            Brigada Porta a Porta
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-sm text-gray-400">
+            Mancomunitat Alta Segarra — Generació de calendaris de torns
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </header>
+
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        <div className="grid gap-8 lg:grid-cols-[380px_1fr]">
+          {/* Columna esquerra: formulari */}
+          <div className="space-y-6">
+            <div className="rounded-xl border border-gray-700 bg-gray-900 p-6">
+              <h2 className="mb-5 text-lg font-semibold text-white">
+                Configuració del mes
+              </h2>
+              <Formulari
+                onSubmit={dades => {
+                  setMesSeleccionat(dades.mes)
+                  setAnySeleccionat(dades.any)
+                  handleGenerar(dades)
+                }}
+                carregant={carregant}
+              />
+            </div>
+
+            {/* Vacances previstes */}
+            <VacancesDelMes mes={mesSeleccionat} any={anySeleccionat} />
+          </div>
+
+          {/* Columna dreta: resultats */}
+          <div className="space-y-6">
+            {/* Missatge error */}
+            {error && (
+              <div className="rounded-lg border border-red-800 bg-red-950/40 p-4 text-sm text-red-300">
+                <strong>Error:</strong> {error}
+              </div>
+            )}
+
+            {/* Indicador càrrega */}
+            {carregant && (
+              <div className="flex items-center justify-center rounded-xl border border-gray-700 bg-gray-900 p-12">
+                <div className="text-center space-y-4">
+                  <svg className="mx-auto h-10 w-10 animate-spin text-blue-500" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  <p className="text-gray-400">Generant el calendari amb IA…</p>
+                  <p className="text-xs text-gray-500">Pot trigar fins a 30 segons</p>
+                </div>
+              </div>
+            )}
+
+            {/* Resultats */}
+            {resposta && !carregant && (
+              <>
+                {/* Validació */}
+                <ErrorsValidacio
+                  errors={resposta.errors_validacio}
+                  advertencies={resposta.advertencies}
+                />
+
+                {/* Botó exportar */}
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleExportar}
+                    disabled={exportant}
+                    className="flex items-center gap-2 rounded-lg bg-green-700 px-5 py-2.5 font-semibold text-white transition-colors hover:bg-green-600 disabled:cursor-not-allowed disabled:bg-gray-600"
+                  >
+                    {exportant ? (
+                      <>
+                        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>
+                        Generant Excel…
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+                        Exportar Excel
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Calendari visual */}
+                <div className="rounded-xl border border-gray-700 bg-gray-900 p-6">
+                  <CalendariVisual
+                    mes={mesSeleccionat}
+                    any={anySeleccionat}
+                    calendari={resposta.calendari}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Estat inicial */}
+            {!resposta && !carregant && !error && (
+              <div className="flex items-center justify-center rounded-xl border border-dashed border-gray-700 bg-gray-900/50 p-16">
+                <div className="text-center space-y-2">
+                  <p className="text-gray-500">Omple el formulari i prem</p>
+                  <p className="text-lg font-medium text-gray-400">&ldquo;Generar calendari&rdquo;</p>
+                  <p className="text-gray-600 text-sm">per generar el calendari de torns</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </main>
     </div>
-  );
+  )
 }
